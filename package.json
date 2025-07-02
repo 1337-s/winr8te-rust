@@ -3,15 +3,17 @@
   "private": true,
   "version": "1.0.0",
   "description": "WINR8TE Rust - Discord bot",
-  "main": "app.js",
+  "main": "src/app.js",
   "type": "module",
   "engines": {
     "node": ">=18.x"
   },
   "scripts": {
     "start": "node app.js",
-    "register": "node commands.js",
-    "dev": "nodemon app.js"
+    "dev": "NODE_ENV=development nodemon app.js",
+    "register": "node scripts/register-commands.js",
+    "register:guild": "node scripts/register-guild.js",
+    "health": "curl http://localhost:8081/health"
   },
   "author": "winr8te",
   "dependencies": {
