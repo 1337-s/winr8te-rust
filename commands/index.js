@@ -1,10 +1,12 @@
 import { testCommand } from "./test.js";
 import { helpCommand } from "./help.js";
+import { mapvoteCommand } from "./mapvote.js";
 
 // Export toutes les commandes
 export const commands = {
   test: testCommand,
   help: helpCommand,
+  mapvote: mapvoteCommand,
 };
 
 // Export les définitions pour l'enregistrement
