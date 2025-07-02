@@ -44,7 +44,6 @@ export async function handleInteraction(req, res) {
 async function handleSlashCommand(req, res, data, user) {
   const { name: commandName, options } = data;
 
-  // Recherche de la commande
   const command = getCommand(commandName);
 
   if (!command) {
@@ -58,7 +57,7 @@ async function handleSlashCommand(req, res, data, user) {
     username: user?.username,
   });
 
-  // Création de l'objet interaction enrichi
+  // Construire un objet interaction simplifié, compatible avec ta commande
   const interaction = {
     id: req.body.id,
     token: req.body.token,
@@ -66,11 +65,15 @@ async function handleSlashCommand(req, res, data, user) {
     data,
     user,
     options: options || [],
+    // Ajouter ce champ si ta commande en a besoin
+    channel_id: req.body.channel_id,
   };
 
-  // Exécution de la commande
+  // Exécuter la commande et récupérer la réponse JSON Discord attendue
   const response = await command.execute(interaction);
 
   logger.info("Command executed successfully", { commandName });
+
+  // Envoyer directement la réponse au webhook Discord
   return res.send(response);
 }

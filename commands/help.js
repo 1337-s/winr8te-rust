@@ -1,4 +1,5 @@
 import { InteractionResponseType } from "discord-interactions";
+import { colors } from "../utils/colors.js";
 
 export const helpCommand = {
   definition: {
@@ -15,7 +16,7 @@ export const helpCommand = {
     const helpEmbed = {
       title: "LISTE DES COMMANDES",
       description: "Voici toutes les commandes disponibles sur WINR8TE",
-      color: 0x00ff00, // Vert
+      color: colors.BLUE,
       fields: [
         {
           name: "/test",
