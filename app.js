@@ -1,7 +1,7 @@
 import "dotenv/config";
 import express from "express";
 import { verifyKeyMiddleware } from "discord-interactions";
-import { handleInteraction } from "./handlers/interactionHandler.js";
+import { handleInteraction } from "./handlers/InteractionHandler.js";
 import { logger } from "./utils/logger.js";
 import { startDiscordClient } from "./utils/discord.js"; // Importer la fonction qui démarre Discord
 

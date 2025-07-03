@@ -17,6 +17,8 @@
   },
   "author": "winr8te",
   "dependencies": {
+    "date-fns": "^4.1.0",
+    "date-fns-tz": "^3.2.0",
     "discord-interactions": "^4.0.0",
     "discord.js": "^14.21.0",
     "dotenv": "^16.0.3",
