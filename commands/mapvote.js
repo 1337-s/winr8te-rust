@@ -1,5 +1,4 @@
-import { zonedTimeToUtc } from "date-fns-tz";
-import { addDays, set } from "date-fns";
+import { DateTime } from "luxon";
 import { InteractionResponseType, InteractionType } from "discord-interactions";
 import { colors } from "../utils/colors.js";
 import { DiscordRequest, activeVotes } from "../utils/discord.js";
@@ -316,41 +315,22 @@ const TEST_MODE = false; // passe à false en prod
 
 function getNextFriday17h() {
   if (TEST_MODE) {
-    // En test : la date de fin sera dans 10 secondes
-    return new Date(Date.now() + 20 * 1000);
-  }
-  const timeZone = "Europe/Paris";
-
-  const now = new Date();
-  const nowInParis = new Date(
-    new Intl.DateTimeFormat("en-US", {
-      timeZone,
-      hour12: false,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-    })
-      .format(now)
-      .replace(/(\d{2})\/(\d{2})\/(\d{4}),/, "$3-$1-$2")
-  );
-
-  const day = nowInParis.getDay(); // 0=dimanche, 5=vendredi
-  const daysUntilFriday = (5 - day + 7) % 7;
-
-  let friday = addDays(nowInParis, daysUntilFriday);
-  friday = set(friday, { hours: 17, minutes: 0, seconds: 0, milliseconds: 0 });
-
-  // Si déjà vendredi après 17h → prendre le vendredi suivant
-  if (daysUntilFriday === 0 && nowInParis.getHours() >= 17) {
-    friday = addDays(friday, 7);
+    return new Date(Date.now() + 20 * 1000); // Test rapide
   }
 
-  // Convertir la date Parisienne 17h en UTC (JS Date)
-  const fridayUtc = zonedTimeToUtc(friday, timeZone);
-  return fridayUtc;
+  // Heure actuelle à Paris
+  const now = DateTime.now().setZone("Europe/Paris");
+
+  // Trouver le prochain vendredi
+  let nextFriday = now.set({ hour: 17, minute: 0, second: 0, millisecond: 0 });
+  if (now.weekday > 5 || (now.weekday === 5 && now.hour >= 17)) {
+    nextFriday = nextFriday.plus({ weeks: 1 });
+  } else {
+    nextFriday = nextFriday.plus({ days: 5 - now.weekday });
+  }
+
+  // Convertir en Date JS (UTC)
+  return nextFriday.toJSDate();
 }
 
 function scheduleVoteEnd(voteId, endTime) {
