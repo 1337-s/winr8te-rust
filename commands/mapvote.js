@@ -217,7 +217,6 @@ async function sendVoteMessages(
       return {
         url: commonUrl,
         image: { url: img },
-        footer: { text: `Seed: ${seeds[i]}` },
       };
     }
   });
@@ -272,8 +271,12 @@ async function sendVoteMessages(
   // Message de vote avec réactions (idem que ton code)
   const voteEmbed = {
     title: "VOTEZ POUR LA PROCHAINE MAP",
-    description:
-      "Cliquez sur les réactions pour voter pour votre map préférée :\n\n1️⃣ → Map 1\n2️⃣ → Map 2\n3️⃣ → Map 3\n4️⃣ → Map 4",
+    description: `Cliquez sur les réactions pour voter pour votre map préférée :
+
+\`\`\`
+1️⃣ → Map 1    2️⃣ → Map 2
+3️⃣ → Map 3    4️⃣ → Map 4
+\`\`\``,
     color: colors.BLUE,
   };
 

@@ -1,6 +1,6 @@
 export const colors = {
-  BLUE: 0x001e87,
+  BLUE: 0x0033eb,
   GREEN: 0x00de5d,
-  RED: 0xc4113e,
-  YELLOW: 0xcdd618,
+  RED: 0xcc1241,
+  YELLOW: 0xdfe619,
 };
