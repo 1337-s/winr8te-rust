@@ -15,17 +15,23 @@ export const helpCommand = {
 
     const helpEmbed = {
       title: "LISTE DES COMMANDES",
-      description: "Voici toutes les commandes disponibles sur WINR8TE",
+      description: "Voici toutes les commandes disponibles sur **WINR8TE** :",
       color: colors.BLUE,
       fields: [
         {
-          name: "/test",
-          value: "Commande de test pour vérifier que le bot fonctionne",
+          name: "⚙️ `/stat`",
+          value: "_Affiche les statistiques détaillées d'un joueur_",
           inline: false,
         },
         {
-          name: "/help",
-          value: "Affiche cette liste de commandes",
+          name: "⚙️ `/leaderboard`",
+          value:
+            "_Affiche le classement des joueurs pour une statistique donnée_",
+          inline: false,
+        },
+        {
+          name: "⚙️ `/help`",
+          value: "_Affiche cette liste de commandes_",
           inline: false,
         },
       ],
