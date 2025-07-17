@@ -2,15 +2,7 @@ import { DateTime } from "luxon";
 import { InteractionResponseType, InteractionType } from "discord-interactions";
 import { colors } from "../utils/colors.js";
 import { DiscordRequest, activeVotes } from "../utils/discord.js";
-import mysql from "mysql2/promise";
-
-// Configuration BDD
-const dbConfig = {
-  host: process.env.DB_HOST,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME,
-};
+import fs from "fs/promises";
 
 export const mapvoteCommand = {
   definition: {
@@ -211,7 +203,6 @@ async function sendVoteMessages(
         color: colors.BLUE,
         url: commonUrl,
         image: { url: img },
-        footer: { text: `Seed: ${seeds[i]}` },
       };
     } else {
       return {
@@ -399,20 +390,25 @@ async function endVote(voteId) {
     },
   });
 
-  // Mettre à jour la BDD
-  try {
-    const connection = await mysql.createConnection(dbConfig);
-    await connection.execute(
-      "UPDATE map_votes SET map_name = ?, map_seed = ?, votes = ?, vote_end_time = NOW() WHERE id = 1",
-      [`Map ${winnerIndex + 1}`, winnerSeed, maxVotes]
-    );
-    await connection.end();
+  const voteResult = {
+    mapNumber: winnerIndex + 1,
+    seed: winnerSeed,
+    votes: maxVotes,
+    image: voteData.images[winnerIndex],
+    link: voteData.links[winnerIndex],
+    endTime: voteData.endTime.toISOString(),
+    wipeTime: nextWipeDate.toISOString(),
+  };
 
-    console.log(
-      `✅ Vote terminé - Map ${winnerIndex + 1} gagnante (seed: ${winnerSeed})`
+  // Écriture dans un fichier JSON
+  try {
+    await fs.writeFile(
+      "mapvote_result.json",
+      JSON.stringify(voteResult, null, 2)
     );
+    console.log(`✅ Résultat du vote sauvegardé dans mapvote_result.json`);
   } catch (error) {
-    console.error("❌ Erreur BDD:", error);
+    console.error("❌ Erreur lors de l'enregistrement JSON :", error);
   }
 
   activeVotes.delete(voteId);

@@ -7,8 +7,6 @@ import { leaderboardCommand } from "./leaderboard.js";
 export const commands = {
   help: helpCommand,
   mapvote: mapvoteCommand,
-  stat: statCommand,
-  leaderboard: leaderboardCommand,
 };
 
 // Export les définitions pour l'enregistrement

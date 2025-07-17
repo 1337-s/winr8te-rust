@@ -15,20 +15,10 @@ export const helpCommand = {
 
     const helpEmbed = {
       title: "LISTE DES COMMANDES",
-      description: "Voici toutes les commandes disponibles sur **WINR8TE** :",
+      description:
+        "-# Les commandes sont en cours de développement. Nous vous avertirons lorsqu'elles seront à nouveau disponibles.\n\nVoici toutes les commandes disponibles sur **WINR8TE** :",
       color: colors.BLUE,
       fields: [
-        {
-          name: "⚙️ `/stat`",
-          value: "_Affiche les statistiques détaillées d'un joueur_",
-          inline: false,
-        },
-        {
-          name: "⚙️ `/leaderboard`",
-          value:
-            "_Affiche le classement des joueurs pour une statistique donnée_",
-          inline: false,
-        },
         {
           name: "⚙️ `/help`",
           value: "_Affiche cette liste de commandes_",
