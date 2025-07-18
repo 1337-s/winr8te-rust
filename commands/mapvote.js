@@ -1,122 +1,93 @@
+import {
+  EmbedBuilder,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  PermissionsBitField,
+  SlashCommandBuilder,
+} from "discord.js";
 import { DateTime } from "luxon";
-import { InteractionResponseType, InteractionType } from "discord-interactions";
-import { colors } from "../utils/colors.js";
-import { DiscordRequest, activeVotes } from "../utils/discord.js";
 import fs from "fs/promises";
+import { colors } from "../utils/colors.js";
+import { activeVotes } from "../utils/discord.js";
 
 export const mapvoteCommand = {
-  definition: {
-    name: "mapvote",
-    description:
-      "Lance un vote de map pour le prochain wipe (Admin uniquement)",
-    type: 1,
-    integration_types: [0],
-    contexts: [0],
-    default_member_permissions: "8",
-    options: [
-      {
-        name: "image1",
-        description: "URL de l'image de la map 1",
-        type: 3,
-        required: true,
-      },
-      {
-        name: "link1",
-        description: "Lien RustMaps de la map 1",
-        type: 3,
-        required: true,
-      },
-      {
-        name: "seed1",
-        description: "Seed de la map 1",
-        type: 3,
-        required: true,
-      },
-      {
-        name: "image2",
-        description: "URL de l'image de la map 2",
-        type: 3,
-        required: true,
-      },
-      {
-        name: "link2",
-        description: "Lien RustMaps de la map 2",
-        type: 3,
-        required: true,
-      },
-      {
-        name: "seed2",
-        description: "Seed de la map 2",
-        type: 3,
-        required: true,
-      },
-      {
-        name: "image3",
-        description: "URL de l'image de la map 3",
-        type: 3,
-        required: true,
-      },
-      {
-        name: "link3",
-        description: "Lien RustMaps de la map 3",
-        type: 3,
-        required: true,
-      },
-      {
-        name: "seed3",
-        description: "Seed de la map 3",
-        type: 3,
-        required: true,
-      },
-      {
-        name: "image4",
-        description: "URL de l'image de la map 4",
-        type: 3,
-        required: true,
-      },
-      {
-        name: "link4",
-        description: "Lien RustMaps de la map 4",
-        type: 3,
-        required: true,
-      },
-      {
-        name: "seed4",
-        description: "Seed de la map 4",
-        type: 3,
-        required: true,
-      },
-    ],
-  },
-
+  data: new SlashCommandBuilder()
+    .setName("mapvote")
+    .setDescription(
+      "Lance un vote de map pour le prochain wipe (Admin uniquement)"
+    )
+    .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator)
+    .addStringOption((opt) =>
+      opt
+        .setName("image1")
+        .setDescription("URL de l'image de la map 1")
+        .setRequired(true)
+    )
+    .addStringOption((opt) =>
+      opt
+        .setName("link1")
+        .setDescription("Lien RustMaps de la map 1")
+        .setRequired(true)
+    )
+    .addStringOption((opt) =>
+      opt.setName("seed1").setDescription("Seed de la map 1").setRequired(true)
+    )
+    .addStringOption((opt) =>
+      opt
+        .setName("image2")
+        .setDescription("URL de l'image de la map 2")
+        .setRequired(true)
+    )
+    .addStringOption((opt) =>
+      opt
+        .setName("link2")
+        .setDescription("Lien RustMaps de la map 2")
+        .setRequired(true)
+    )
+    .addStringOption((opt) =>
+      opt.setName("seed2").setDescription("Seed de la map 2").setRequired(true)
+    )
+    .addStringOption((opt) =>
+      opt
+        .setName("image3")
+        .setDescription("URL de l'image de la map 3")
+        .setRequired(true)
+    )
+    .addStringOption((opt) =>
+      opt
+        .setName("link3")
+        .setDescription("Lien RustMaps de la map 3")
+        .setRequired(true)
+    )
+    .addStringOption((opt) =>
+      opt.setName("seed3").setDescription("Seed de la map 3").setRequired(true)
+    )
+    .addStringOption((opt) =>
+      opt
+        .setName("image4")
+        .setDescription("URL de l'image de la map 4")
+        .setRequired(true)
+    )
+    .addStringOption((opt) =>
+      opt
+        .setName("link4")
+        .setDescription("Lien RustMaps de la map 4")
+        .setRequired(true)
+    )
+    .addStringOption((opt) =>
+      opt.setName("seed4").setDescription("Seed de la map 4").setRequired(true)
+    ),
   async execute(interaction) {
-    const images = [
-      interaction.data.options.find((opt) => opt.name === "image1")?.value,
-      interaction.data.options.find((opt) => opt.name === "image2")?.value,
-      interaction.data.options.find((opt) => opt.name === "image3")?.value,
-      interaction.data.options.find((opt) => opt.name === "image4")?.value,
-    ];
+    const options = interaction.options;
+    const images = [1, 2, 3, 4].map((i) => options.getString(`image${i}`));
+    const links = [1, 2, 3, 4].map((i) => options.getString(`link${i}`));
+    const seeds = [1, 2, 3, 4].map((i) => options.getString(`seed${i}`));
 
-    const links = [
-      interaction.data.options.find((opt) => opt.name === "link1")?.value,
-      interaction.data.options.find((opt) => opt.name === "link2")?.value,
-      interaction.data.options.find((opt) => opt.name === "link3")?.value,
-      interaction.data.options.find((opt) => opt.name === "link4")?.value,
-    ];
-
-    const seeds = [
-      interaction.data.options.find((opt) => opt.name === "seed1")?.value,
-      interaction.data.options.find((opt) => opt.name === "seed2")?.value,
-      interaction.data.options.find((opt) => opt.name === "seed3")?.value,
-      interaction.data.options.find((opt) => opt.name === "seed4")?.value,
-    ];
-
-    // Calculer les dates
     const now = new Date();
     const nextFriday = getNextFriday17h();
-    const wipeTime = new Date(nextFriday.getTime() + 60 * 60 * 1000); // +1h pour le wipe
+    const wipeTime = new Date(nextFriday.getTime() + 60 * 60 * 1000);
 
-    // Stocker le vote actif
     const voteId = interaction.id;
     activeVotes.set(voteId, {
       images,
@@ -124,34 +95,25 @@ export const mapvoteCommand = {
       seeds,
       votes: [0, 0, 0, 0],
       endTime: nextFriday,
-      channelId: interaction.channel_id,
+      channelId: interaction.channel.id,
       voteMessageId: null,
     });
 
-    console.log(
-      `[mapvote] Vote créé avec ID ${voteId} - channel: ${interaction.channel_id}`
-    );
-    console.log(`[mapvote] Votes initiaux:`, activeVotes.get(voteId).votes);
-    // Programmer la fin du vote
     scheduleVoteEnd(voteId, nextFriday);
 
-    // Réponse initiale
+    await interaction.reply({
+      content: "✅ MapVote lancé avec succès !",
+      ephemeral: true,
+    });
     await sendVoteMessages(
       interaction,
       images,
       links,
       seeds,
       nextFriday,
-      wipeTime
+      wipeTime,
+      voteId
     );
-
-    return {
-      type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
-      data: {
-        content: "✅ MapVote lancé avec succès !",
-        flags: 64,
-      },
-    };
   },
 };
 
@@ -161,16 +123,17 @@ async function sendVoteMessages(
   links,
   seeds,
   endTime,
-  wipeTime
+  wipeTime,
+  voteId
 ) {
-  const channelId = interaction.channel_id;
-  const voteId = interaction.id;
+  const channel = interaction.channel;
+  const commonUrl = "https://winr8te.com";
 
-  // Message d'annonce
-  const announceEmbed = {
-    title: "🌍 MAP VOTE LANCÉ",
-    color: colors.BLUE,
-    fields: [
+  // 1. Annonce initiale
+  const announceEmbed = new EmbedBuilder()
+    .setTitle("🌍 MAP VOTE LANCÉ")
+    .setColor(colors.BLUE)
+    .addFields(
       {
         name: "🕐 Prochain wipe (fullwipe)",
         value: `<t:${Math.floor(wipeTime.getTime() / 1000)}:F>`,
@@ -180,236 +143,60 @@ async function sendVoteMessages(
         name: "⏰ Fin du vote",
         value: `<t:${Math.floor(endTime.getTime() / 1000)}:R>`,
         inline: true,
-      },
-    ],
-  };
-
-  await DiscordRequest(`channels/${channelId}/messages`, {
-    method: "POST",
-    body: {
-      content: "@everyone",
-      embeds: [announceEmbed],
-      allowed_mentions: { parse: ["everyone"] },
-    },
-  });
-
-  // Préparer le même URL à mettre dans chaque embed (par ex. la home de ton bot)
-  const commonUrl = "https://winr8te.com";
-
-  // Créer les 4 embeds avec la même URL, premier avec titre+desc, les autres juste l'image
-  const embeds = images.map((img, i) => {
-    if (i === 0) {
-      return {
-        color: colors.BLUE,
-        url: commonUrl,
-        image: { url: img },
-      };
-    } else {
-      return {
-        url: commonUrl,
-        image: { url: img },
-      };
-    }
-  });
-
-  // Boutons pour les liens RustMaps
-  const buttons = [
-    {
-      type: 1, // Action Row 1
-      components: [
-        {
-          type: 2, // Button
-          style: 5, // Link style
-          label: "Map 1",
-          url: links[0],
-        },
-        {
-          type: 2,
-          style: 5,
-          label: "Map 2",
-          url: links[1],
-        },
-      ],
-    },
-    {
-      type: 1, // Action Row 2
-      components: [
-        {
-          type: 2,
-          style: 5,
-          label: "Map 3",
-          url: links[2],
-        },
-        {
-          type: 2,
-          style: 5,
-          label: "Map 4",
-          url: links[3],
-        },
-      ],
-    },
-  ];
-
-  // Envoyer un seul message avec les 4 embeds ET les boutons
-  await DiscordRequest(`channels/${channelId}/messages`, {
-    method: "POST",
-    body: {
-      embeds: embeds,
-      components: buttons,
-    },
-  });
-
-  // Message de vote avec réactions (idem que ton code)
-  const voteEmbed = {
-    title: "VOTEZ POUR LA PROCHAINE MAP",
-    description: `Cliquez sur les réactions pour voter pour votre map préférée :
-
-\`\`\`
-1️⃣ → Map 1    2️⃣ → Map 2
-3️⃣ → Map 3    4️⃣ → Map 4
-\`\`\``,
-    color: colors.BLUE,
-  };
-
-  const voteMessage = await DiscordRequest(`channels/${channelId}/messages`, {
-    method: "POST",
-    body: { embeds: [voteEmbed] },
-  });
-
-  const messageData = await voteMessage.json();
-
-  // Stocker l'ID du message de vote dans activeVotes pour reconnaitre les réactions
-  const voteData = activeVotes.get(voteId);
-  if (voteData) {
-    voteData.voteMessageId = messageData.id;
-    console.log(
-      `[mapvote] voteMessageId mis à jour pour vote ${voteId} : ${messageData.id}`
-    );
-  } else {
-    console.warn(
-      `[mapvote] voteData introuvable pour voteId ${voteId} au moment de mise à jour voteMessageId`
-    );
-  }
-
-  const reactions = ["1️⃣", "2️⃣", "3️⃣", "4️⃣"];
-  for (const reaction of reactions) {
-    await DiscordRequest(
-      `channels/${channelId}/messages/${
-        messageData.id
-      }/reactions/${encodeURIComponent(reaction)}/@me`,
-      {
-        method: "PUT",
       }
     );
-    await new Promise((res) => setTimeout(res, 200));
-  }
-}
 
-const TEST_MODE = false; // passe à false en prod
-
-function getNextFriday17h() {
-  if (TEST_MODE) {
-    return new Date(Date.now() + 20 * 1000); // Test rapide
-  }
-
-  // Heure actuelle à Paris
-  const now = DateTime.now().setZone("Europe/Paris");
-
-  // Trouver le prochain vendredi
-  let nextFriday = now.set({ hour: 17, minute: 0, second: 0, millisecond: 0 });
-  if (now.weekday > 5 || (now.weekday === 5 && now.hour >= 17)) {
-    nextFriday = nextFriday.plus({ weeks: 1 });
-  } else {
-    nextFriday = nextFriday.plus({ days: 5 - now.weekday });
-  }
-
-  // Convertir en Date JS (UTC)
-  return nextFriday.toJSDate();
-}
-
-function scheduleVoteEnd(voteId, endTime) {
-  const timeout = endTime.getTime() - Date.now();
-
-  // Si timeout négatif (possible en test), force minimum 1 sec
-  const safeTimeout = timeout > 0 ? timeout : 1000;
-
-  setTimeout(async () => {
-    await endVote(voteId);
-  }, safeTimeout);
-}
-
-async function endVote(voteId) {
-  const voteData = activeVotes.get(voteId);
-  if (!voteData) return;
-
-  // Trouver la map gagnante
-  const maxVotes = Math.max(...voteData.votes);
-  const winnerIndex = voteData.votes.indexOf(maxVotes);
-  const winnerSeed = voteData.seeds[winnerIndex];
-
-  // Date du prochain wipe (1h après la fin du vote)
-  const nextWipeDate = new Date(voteData.endTime.getTime() + 60 * 60 * 1000);
-  // Envoyer le message d'annonce dans le canal du vote
-  const channelId = voteData.channelId;
-
-  const announceEmbed = {
-    title: "🌍 MAP VOTE TERMINÉ",
-    color: colors.YELLOW,
-    fields: [
-      {
-        name: `Map gagnante : Map ${winnerIndex + 1}`,
-        value: `**Seed:** \`${winnerSeed}\`\n**Nombre de votes:** **${maxVotes}**`,
-        inline: false,
-      },
-      {
-        name: "Lien vers la map",
-        value: `[Voir la map ici](${voteData.links[winnerIndex]})`,
-        inline: true,
-      },
-      {
-        name: "Le wipe commence :",
-        value: `<t:${Math.floor(nextWipeDate.getTime() / 1000)}:R>`,
-        inline: true,
-      },
-    ],
-    image: {
-      url: voteData.images[winnerIndex],
-    },
-    footer: {
-      text: "Merci à tous d'avoir participé au vote !",
-    },
-  };
-
-  // Envoyer le message avec mention everyone et embed
-  await DiscordRequest(`channels/${channelId}/messages`, {
-    method: "POST",
-    body: {
-      content: "@everyone",
-      embeds: [announceEmbed],
-      allowed_mentions: { parse: ["everyone"] },
-    },
+  await channel.send({
+    content: "@everyone",
+    embeds: [announceEmbed],
+    allowedMentions: { parse: ["everyone"] },
   });
 
-  const voteResult = {
-    mapNumber: winnerIndex + 1,
-    seed: winnerSeed,
-    votes: maxVotes,
-    image: voteData.images[winnerIndex],
-    link: voteData.links[winnerIndex],
-    endTime: voteData.endTime.toISOString(),
-    wipeTime: nextWipeDate.toISOString(),
-  };
+  // 2. Embeds de maps
+  const embeds = images.map((img, i) =>
+    new EmbedBuilder().setImage(img).setColor(colors.BLUE).setURL(commonUrl)
+  );
 
-  // Écriture dans un fichier JSON
-  try {
-    await fs.writeFile(
-      "mapvote_result.json",
-      JSON.stringify(voteResult, null, 2)
-    );
-    console.log(`✅ Résultat du vote sauvegardé dans mapvote_result.json`);
-  } catch (error) {
-    console.error("❌ Erreur lors de l'enregistrement JSON :", error);
+  // 3. Boutons
+  const row1 = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setLabel("Map 1")
+      .setStyle(ButtonStyle.Link)
+      .setURL(links[0]),
+    new ButtonBuilder()
+      .setLabel("Map 2")
+      .setStyle(ButtonStyle.Link)
+      .setURL(links[1])
+  );
+  const row2 = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setLabel("Map 3")
+      .setStyle(ButtonStyle.Link)
+      .setURL(links[2]),
+    new ButtonBuilder()
+      .setLabel("Map 4")
+      .setStyle(ButtonStyle.Link)
+      .setURL(links[3])
+  );
+
+  await channel.send({ embeds, components: [row1, row2] });
+
+  // 4. Message de vote
+  const voteEmbed = new EmbedBuilder()
+    .setTitle("VOTEZ POUR LA PROCHAINE MAP")
+    .setDescription(
+      `Cliquez sur les réactions pour voter pour votre map préférée :\n\n\`\`\`\n1️⃣ → Map 1    2️⃣ → Map 2\n3️⃣ → Map 3    4️⃣ → Map 4\n\`\`\``
+    )
+    .setColor(colors.BLUE);
+
+  const voteMessage = await channel.send({ embeds: [voteEmbed] });
+
+  const voteData = activeVotes.get(voteId);
+  if (voteData) voteData.voteMessageId = voteMessage.id;
+
+  const emojis = ["1️⃣", "2️⃣", "3️⃣", "4️⃣"];
+  for (const emoji of emojis) {
+    await voteMessage.react(emoji);
+    await new Promise((res) => setTimeout(res, 200)); // Delay pour éviter le rate limit
   }
-
-  activeVotes.delete(voteId);
 }

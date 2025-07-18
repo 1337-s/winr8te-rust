@@ -9,8 +9,8 @@
     "node": ">=18.x"
   },
   "scripts": {
-    "start": "node app.js",
-    "dev": "NODE_ENV=development nodemon app.js",
+    "start": "node bot.js",
+    "dev": "NODE_ENV=development nodemon bot.js",
     "register": "node scripts/register-commands.js",
     "register:guild": "node scripts/register-guild.js",
     "health": "curl http://localhost:8081/health"
