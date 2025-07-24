@@ -1,10 +1,5 @@
 import { Client, GatewayIntentBits } from "discord.js";
 import { logger } from "./logger.js";
-import {
-  initializeAntispam,
-  handleMessage,
-  handleMemberJoin,
-} from "./antispam.js";
 
 let client;
 
@@ -27,33 +22,6 @@ export async function startDiscordClient() {
         tag: client.user.tag,
         guilds: client.guilds.cache.size,
       });
-
-      // Initialisation du système antispam
-      await initializeAntispam();
-    });
-
-    // Événement messageCreate (pour l'antispam)
-    client.on("messageCreate", async (message) => {
-      try {
-        await handleMessage(message, client);
-      } catch (error) {
-        logger.error("Error handling message", {
-          messageId: message.id,
-          error: error.message,
-        });
-      }
-    });
-
-    // Événement guildMemberAdd (pour l'antispam)
-    client.on("guildMemberAdd", async (member) => {
-      try {
-        await handleMemberJoin(member);
-      } catch (error) {
-        logger.error("Error handling member join", {
-          userId: member.id,
-          error: error.message,
-        });
-      }
     });
 
     // Gestion des erreurs
