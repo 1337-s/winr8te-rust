@@ -10,6 +10,10 @@ import { DateTime } from "luxon";
 import fs from "fs/promises";
 import { colors } from "../utils/colors.js";
 import { activeVotes } from "../utils/discord.js";
+import { scheduleVoteEnd } from "../utils/reactions.js";
+
+// 🧪 MODE TEST - Changer à true pour activer le mode test (30 secondes)
+const TEST_MODE = false;
 
 export const mapvoteCommand = {
   data: new SlashCommandBuilder()
@@ -85,8 +89,17 @@ export const mapvoteCommand = {
     const seeds = [1, 2, 3, 4].map((i) => options.getString(`seed${i}`));
 
     const now = new Date();
-    const nextFriday = getNextFriday17h();
-    const wipeTime = new Date(nextFriday.getTime() + 60 * 60 * 1000);
+
+    // 🧪 Mode test : 30 secondes au lieu du prochain vendredi
+    let endTime, wipeTime;
+    if (TEST_MODE) {
+      endTime = new Date(now.getTime() + 30 * 1000); // 30 secondes
+      wipeTime = new Date(endTime.getTime() + 5 * 1000); // 5 secondes après la fin du vote
+    } else {
+      const nextFriday = getNextFriday17h();
+      endTime = nextFriday;
+      wipeTime = new Date(nextFriday.getTime() + 60 * 60 * 1000);
+    }
 
     const voteId = interaction.id;
     activeVotes.set(voteId, {
@@ -94,15 +107,20 @@ export const mapvoteCommand = {
       links,
       seeds,
       votes: [0, 0, 0, 0],
-      endTime: nextFriday,
+      endTime: endTime,
       channelId: interaction.channel.id,
       voteMessageId: null,
+      testMode: TEST_MODE,
     });
 
-    scheduleVoteEnd(voteId, nextFriday);
+    scheduleVoteEnd(voteId, endTime);
+
+    const responseMessage = TEST_MODE
+      ? "🧪 **MODE TEST** - MapVote lancé avec succès ! (se termine dans 30 secondes)"
+      : "✅ MapVote lancé avec succès !";
 
     await interaction.reply({
-      content: "✅ MapVote lancé avec succès !",
+      content: responseMessage,
       ephemeral: true,
     });
     await sendVoteMessages(
@@ -110,12 +128,28 @@ export const mapvoteCommand = {
       images,
       links,
       seeds,
-      nextFriday,
+      endTime,
       wipeTime,
       voteId
     );
   },
 };
+
+// Fonction pour calculer le prochain vendredi à 17h
+function getNextFriday17h() {
+  const now = DateTime.now().setZone("Europe/Paris");
+  let nextFriday = now
+    .startOf("week")
+    .plus({ days: 4 })
+    .set({ hour: 17, minute: 0, second: 0 });
+
+  // Si on est déjà passé le vendredi 17h cette semaine, prendre le vendredi suivant
+  if (nextFriday <= now) {
+    nextFriday = nextFriday.plus({ weeks: 1 });
+  }
+
+  return nextFriday.toJSDate();
+}
 
 async function sendVoteMessages(
   interaction,
@@ -130,18 +164,23 @@ async function sendVoteMessages(
   const commonUrl = "https://winr8te.com";
 
   // 1. Annonce initiale
+  const testModeIndicator = TEST_MODE ? "🧪 **MODE TEST** - " : "";
   const announceEmbed = new EmbedBuilder()
-    .setTitle("🌍 MAP VOTE LANCÉ")
-    .setColor(colors.BLUE)
+    .setTitle(`${testModeIndicator}🌍 MAP VOTE LANCÉ`)
+    .setColor(TEST_MODE ? colors.YELLOW : colors.BLUE)
     .addFields(
       {
-        name: "🕐 Prochain wipe (fullwipe)",
+        name: TEST_MODE
+          ? "🧪 Test - Prochain wipe"
+          : "🕐 Prochain wipe (fullwipe)",
         value: `<t:${Math.floor(wipeTime.getTime() / 1000)}:F>`,
         inline: true,
       },
       {
         name: "⏰ Fin du vote",
-        value: `<t:${Math.floor(endTime.getTime() / 1000)}:R>`,
+        value: TEST_MODE
+          ? `<t:${Math.floor(endTime.getTime() / 1000)}:R> **(30 secondes)**`
+          : `<t:${Math.floor(endTime.getTime() / 1000)}:R>`,
         inline: true,
       }
     );
@@ -154,7 +193,10 @@ async function sendVoteMessages(
 
   // 2. Embeds de maps
   const embeds = images.map((img, i) =>
-    new EmbedBuilder().setImage(img).setColor(colors.BLUE).setURL(commonUrl)
+    new EmbedBuilder()
+      .setImage(img)
+      .setColor(TEST_MODE ? colors.YELLOW : colors.BLUE)
+      .setURL(commonUrl)
   );
 
   // 3. Boutons
@@ -183,11 +225,15 @@ async function sendVoteMessages(
 
   // 4. Message de vote
   const voteEmbed = new EmbedBuilder()
-    .setTitle("VOTEZ POUR LA PROCHAINE MAP")
+    .setTitle(`${testModeIndicator}VOTEZ POUR LA PROCHAINE MAP`)
     .setDescription(
-      `Cliquez sur les réactions pour voter pour votre map préférée :\n\n\`\`\`\n1️⃣ → Map 1    2️⃣ → Map 2\n3️⃣ → Map 3    4️⃣ → Map 4\n\`\`\``
+      `Cliquez sur les réactions pour voter pour votre map préférée :\n\n\`\`\`\n1️⃣ → Map 1    2️⃣ → Map 2\n3️⃣ → Map 3    4️⃣ → Map 4\n\`\`\`${
+        TEST_MODE
+          ? "\n\n🧪 **MODE TEST ACTIVÉ** - Vote se termine dans 30 secondes"
+          : ""
+      }`
     )
-    .setColor(colors.BLUE);
+    .setColor(TEST_MODE ? colors.YELLOW : colors.BLUE);
 
   const voteMessage = await channel.send({ embeds: [voteEmbed] });
 

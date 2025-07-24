@@ -2,9 +2,7 @@
 import { EmbedBuilder } from "discord.js";
 import { colors } from "./colors.js";
 import { logger } from "./logger.js";
-
-// Stockage des votes actifs
-export const activeVotes = new Map();
+import { activeVotes } from "./discord.js";
 
 // Émojis pour les votes
 const VOTE_EMOJIS = ["1️⃣", "2️⃣", "3️⃣", "4️⃣"];
@@ -53,25 +51,6 @@ export async function handleReactionAdd(reaction, user, client) {
   // Vérifier si le vote est encore actif
   if (new Date() > voteData.endTime) {
     return;
-  }
-
-  // Supprimer les autres réactions de cet utilisateur
-  for (let i = 0; i < VOTE_EMOJIS.length; i++) {
-    if (i !== voteIndex) {
-      const otherReaction = reaction.message.reactions.cache.get(
-        VOTE_EMOJIS[i]
-      );
-      if (otherReaction) {
-        try {
-          await otherReaction.users.remove(user.id);
-        } catch (error) {
-          logger.warn("Could not remove user reaction", {
-            userId: user.id,
-            emoji: VOTE_EMOJIS[i],
-          });
-        }
-      }
-    }
   }
 
   // Mettre à jour les votes (optionnel, pour le tracking)
@@ -133,32 +112,33 @@ export async function handleReactionRemove(reaction, user, client) {
 }
 
 // Fonction pour compter les votes
-export async function countVotes(messageId) {
+export async function countVotes(messageId, client) {
   try {
     const voteData = Array.from(activeVotes.values()).find(
       (data) => data.voteMessageId === messageId
     );
-
     if (!voteData) return null;
 
-    // Récupérer le message
     const channel = await client.channels.fetch(voteData.channelId);
     const message = await channel.messages.fetch(messageId);
 
     const voteCounts = [0, 0, 0, 0];
 
-    // Compter les réactions
     for (let i = 0; i < VOTE_EMOJIS.length; i++) {
-      const reaction = message.reactions.cache.get(VOTE_EMOJIS[i]);
-      if (reaction) {
-        // Soustraire 1 pour enlever la réaction du bot
-        voteCounts[i] = Math.max(0, reaction.count - 1);
-      }
+      const emoji = VOTE_EMOJIS[i];
+      const reaction = message.reactions.cache.get(emoji);
+      if (!reaction) continue;
+
+      const users = await reaction.users.fetch();
+      users.forEach((user) => {
+        if (!user.bot) voteCounts[i]++;
+      });
     }
 
+    const totalVotes = voteCounts.reduce((sum, count) => sum + count, 0);
     return {
       votes: voteCounts,
-      total: voteCounts.reduce((sum, count) => sum + count, 0),
+      total: totalVotes,
     };
   } catch (error) {
     logger.error("Error counting votes", { error: error.message });
@@ -176,7 +156,7 @@ export async function endVote(voteId, client) {
     const message = await channel.messages.fetch(voteData.voteMessageId);
 
     // Compter les votes finaux
-    const result = await countVotes(voteData.voteMessageId);
+    const result = await countVotes(voteData.voteMessageId, client);
 
     if (!result) {
       logger.error("Could not count votes for ending", { voteId });
@@ -186,30 +166,23 @@ export async function endVote(voteId, client) {
     // Trouver la map gagnante
     const maxVotes = Math.max(...result.votes);
     const winnerIndex = result.votes.indexOf(maxVotes);
+    const winningImage = voteData.images[winnerIndex];
+    const winningLink = voteData.links[winnerIndex];
 
     // Créer l'embed de résultat
+    const testModeIndicator = voteData.testMode ? "🧪 **MODE TEST** - " : "";
     const resultEmbed = new EmbedBuilder()
-      .setTitle("🏆 RÉSULTATS DU VOTE")
-      .setColor(colors.GREEN)
+      .setTitle(`${testModeIndicator}🌍 MAP VOTE TERMINÉ`)
+      .setColor(colors.YELLOW)
       .setDescription(
-        `**Map ${
-          winnerIndex + 1
-        }** remporte le vote avec **${maxVotes}** votes !`
-      )
-      .addFields(
-        result.votes.map((count, index) => ({
-          name: `${VOTE_EMOJIS[index]} Map ${index + 1}`,
-          value: `${count} votes`,
-          inline: true,
-        }))
+        `**Map ${winnerIndex + 1}** remporte le vote avec **${maxVotes}** votes`
       )
       .addFields({
-        name: "Total des votes",
-        value: `${result.total} votes`,
-        inline: false,
+        name: "Lien vers la map",
+        value: `[Voir la map](${winningLink})`,
+        inline: true,
       })
-      .setTimestamp()
-      .setFooter({ text: "Vote terminé" });
+      .setImage(winningImage);
 
     // Envoyer le résultat
     await channel.send({ embeds: [resultEmbed] });
@@ -233,8 +206,10 @@ export function scheduleVoteEnd(voteId, endTime) {
   const delay = endTime.getTime() - now.getTime();
 
   if (delay > 0) {
-    setTimeout(() => {
-      endVote(voteId, client);
+    setTimeout(async () => {
+      // Import dynamique pour éviter les références circulaires
+      const { client } = await import("../bot.js");
+      await endVote(voteId, client);
     }, delay);
 
     logger.info("Vote end scheduled", {

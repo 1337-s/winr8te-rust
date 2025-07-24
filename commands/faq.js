@@ -1,7 +1,7 @@
-import { InteractionResponseType } from "discord-interactions";
+// commands/faq.js
+import { SlashCommandBuilder, EmbedBuilder } from "discord.js";
 import { colors } from "../utils/colors.js";
 import fs from "fs/promises";
-import path from "path";
 import { DateTime } from "luxon";
 
 const FAQ_FILE = "faq_data.json";

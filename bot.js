@@ -91,18 +91,6 @@ client.on("interactionCreate", async (interaction) => {
   }
 });
 
-// 7. Gestion des nouveaux membres
-client.on("guildMemberAdd", async (member) => {
-  try {
-    await handleMemberJoin(member);
-  } catch (error) {
-    logger.error("Error handling member join", {
-      userId: member.id,
-      error: error.message,
-    });
-  }
-});
-
 // 8. Gestion des réactions (pour le mapvote)
 client.on("messageReactionAdd", async (reaction, user) => {
   try {
