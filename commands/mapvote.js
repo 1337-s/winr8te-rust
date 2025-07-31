@@ -66,27 +66,12 @@ export const mapvoteCommand = {
     )
     .addStringOption((opt) =>
       opt.setName("seed3").setDescription("Seed de la map 3").setRequired(true)
-    )
-    .addStringOption((opt) =>
-      opt
-        .setName("image4")
-        .setDescription("URL de l'image de la map 4")
-        .setRequired(true)
-    )
-    .addStringOption((opt) =>
-      opt
-        .setName("link4")
-        .setDescription("Lien RustMaps de la map 4")
-        .setRequired(true)
-    )
-    .addStringOption((opt) =>
-      opt.setName("seed4").setDescription("Seed de la map 4").setRequired(true)
     ),
   async execute(interaction) {
     const options = interaction.options;
-    const images = [1, 2, 3, 4].map((i) => options.getString(`image${i}`));
-    const links = [1, 2, 3, 4].map((i) => options.getString(`link${i}`));
-    const seeds = [1, 2, 3, 4].map((i) => options.getString(`seed${i}`));
+    const images = [1, 2, 3].map((i) => options.getString(`image${i}`));
+    const links = [1, 2, 3].map((i) => options.getString(`link${i}`));
+    const seeds = [1, 2, 3].map((i) => options.getString(`seed${i}`));
 
     const now = new Date();
 
@@ -191,13 +176,20 @@ async function sendVoteMessages(
     allowedMentions: { parse: ["everyone"] },
   });
 
-  // 2. Embeds de maps
-  const embeds = images.map((img, i) =>
+  // 2. Embeds de maps (3 maps + 1 image transparente pour l'alignement)
+  const embeds = [
+    ...images.map((img, i) =>
+      new EmbedBuilder()
+        .setImage(img)
+        .setColor(TEST_MODE ? colors.YELLOW : colors.BLUE)
+        .setURL(commonUrl)
+    ),
+    // Quatrième embed avec image transparente pour l'alignement 2x2
     new EmbedBuilder()
-      .setImage(img)
+      .setImage("https://i.ibb.co/5XYzTvgs/Frame-49.png")
       .setColor(TEST_MODE ? colors.YELLOW : colors.BLUE)
-      .setURL(commonUrl)
-  );
+      .setURL(commonUrl),
+  ];
 
   // 3. Boutons
   const row1 = new ActionRowBuilder().addComponents(
@@ -214,11 +206,7 @@ async function sendVoteMessages(
     new ButtonBuilder()
       .setLabel("Map 3")
       .setStyle(ButtonStyle.Link)
-      .setURL(links[2]),
-    new ButtonBuilder()
-      .setLabel("Map 4")
-      .setStyle(ButtonStyle.Link)
-      .setURL(links[3])
+      .setURL(links[2])
   );
 
   await channel.send({ embeds, components: [row1, row2] });
@@ -227,7 +215,7 @@ async function sendVoteMessages(
   const voteEmbed = new EmbedBuilder()
     .setTitle(`${testModeIndicator}VOTEZ POUR LA PROCHAINE MAP`)
     .setDescription(
-      `Cliquez sur les réactions pour voter pour votre map préférée :\n\n\`\`\`\n1️⃣ → Map 1    2️⃣ → Map 2\n3️⃣ → Map 3    4️⃣ → Map 4\n\`\`\`${
+      `Cliquez sur les réactions pour voter pour votre map préférée :\n\n\`\`\`\n1️⃣ → Map 1    2️⃣ → Map 2\n3️⃣ → Map 3   \n\`\`\`${
         TEST_MODE
           ? "\n\n🧪 **MODE TEST ACTIVÉ** - Vote se termine dans 30 secondes"
           : ""
@@ -240,7 +228,7 @@ async function sendVoteMessages(
   const voteData = activeVotes.get(voteId);
   if (voteData) voteData.voteMessageId = voteMessage.id;
 
-  const emojis = ["1️⃣", "2️⃣", "3️⃣", "4️⃣"];
+  const emojis = ["1️⃣", "2️⃣", "3️⃣"];
   for (const emoji of emojis) {
     await voteMessage.react(emoji);
     await new Promise((res) => setTimeout(res, 200)); // Delay pour éviter le rate limit
