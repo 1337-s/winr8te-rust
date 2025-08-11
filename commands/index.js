@@ -1,11 +1,13 @@
 import { helpCommand } from "./help.js";
 import { mapvoteCommand } from "./mapvote.js";
+import { mapwipemapvoteCommand } from "./mapwipemapvote.js";
 // import { faqCommand } from "./faq.js";
 
 // Export toutes les commandes
 export const commands = {
   help: helpCommand,
   mapvote: mapvoteCommand,
+  mapwipemapvote: mapwipemapvoteCommand,
   // faq: faqCommand,
 };
 

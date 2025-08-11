@@ -59,6 +59,7 @@ export async function handleReactionAdd(reaction, user, client) {
     username: user.username,
     mapIndex: voteIndex + 1,
     voteId: voteId,
+    isMapwipe: voteData.isMapwipe || false,
   });
 }
 
@@ -108,6 +109,7 @@ export async function handleReactionRemove(reaction, user, client) {
     username: user.username,
     mapIndex: voteIndex + 1,
     voteId: voteId,
+    isMapwipe: voteData.isMapwipe || false,
   });
 }
 
@@ -169,11 +171,16 @@ export async function endVote(voteId, client) {
     const winningImage = voteData.images[winnerIndex];
     const winningLink = voteData.links[winnerIndex];
 
-    // Créer l'embed de résultat
+    // Déterminer le type de vote et adapter le message
+    const isMapwipe = voteData.isMapwipe || false;
+    const voteType = isMapwipe ? "MAPWIPE" : "FULLWIPE";
     const testModeIndicator = voteData.testMode ? "🧪 **MODE TEST** - " : "";
+    const embedColor = isMapwipe ? colors.GREEN : colors.YELLOW;
+
+    // Créer l'embed de résultat
     const resultEmbed = new EmbedBuilder()
-      .setTitle(`${testModeIndicator}🌍 MAP VOTE TERMINÉ`)
-      .setColor(colors.YELLOW)
+      .setTitle(`${testModeIndicator}🌍 ${voteType} MAP VOTE TERMINÉ`)
+      .setColor(embedColor)
       .setDescription(
         `**Map ${winnerIndex + 1}** remporte le vote avec **${maxVotes}** votes`
       )
@@ -194,6 +201,7 @@ export async function endVote(voteId, client) {
       voteId,
       winner: winnerIndex + 1,
       totalVotes: result.total,
+      isMapwipe: isMapwipe,
     });
   } catch (error) {
     logger.error("Error ending vote", { voteId, error: error.message });
