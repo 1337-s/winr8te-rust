@@ -10,6 +10,8 @@ import {
 import { logger } from "./utils/logger.js";
 import { handleReactionAdd, handleReactionRemove } from "./utils/reactions.js";
 import { commands } from "./commands/index.js";
+import { initDatabase, testDatabaseConnection } from "./utils/database.js";
+import { scheduleNextAutoMapVote } from "./utils/autoMapvote.js";
 
 // 1. Création du client avec tous les intents nécessaires
 const client = new Client({
@@ -57,6 +59,20 @@ async function registerCommands() {
 client.once("ready", async () => {
   logger.success(`🤖 Bot connecté en tant que ${client.user.tag}`);
 
+  // Tester la connexion à la base de données
+  const dbConnected = await testDatabaseConnection();
+  
+  if (!dbConnected) {
+    logger.error("❌ Impossible de se connecter à la base de données");
+    logger.warn("⚠️ Le système de MapVote automatique ne fonctionnera pas");
+  } else {
+    logger.success("✅ Base de données connectée");
+    
+    // Programmer le MapVote automatique
+    scheduleNextAutoMapVote(client);
+    logger.success("✅ MapVote automatique programmé");
+  }
+
   // Enregistrement des commandes
   await registerCommands();
 });
@@ -69,7 +85,6 @@ client.on("interactionCreate", async (interaction) => {
   if (!command) return;
 
   try {
-    // Utilisation de la méthode Discord.js standard
     if (command.execute) {
       await command.execute(interaction);
     }
@@ -91,7 +106,7 @@ client.on("interactionCreate", async (interaction) => {
   }
 });
 
-// 8. Gestion des réactions (pour le mapvote)
+// 6. Gestion des réactions (pour le mapvote)
 client.on("messageReactionAdd", async (reaction, user) => {
   try {
     await handleReactionAdd(reaction, user, client);
@@ -112,7 +127,7 @@ client.on("messageReactionRemove", async (reaction, user) => {
   }
 });
 
-// 9. Gestion des erreurs
+// 7. Gestion des erreurs
 client.on("error", (error) => {
   logger.error("Discord client error", { error: error.message });
 });
@@ -121,7 +136,10 @@ process.on("unhandledRejection", (reason, promise) => {
   logger.error("Unhandled Rejection at:", { promise, reason });
 });
 
-// 10. Démarrage du bot
+// 8. Initialiser la base de données
+initDatabase();
+
+// 9. Démarrage du bot
 client.login(process.env.BOT_TOKEN);
 
 // Export du client pour les autres modules

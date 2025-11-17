@@ -1,19 +1,14 @@
-import { helpCommand } from "./help.js";
-import { mapvoteCommand } from "./mapvote.js";
-import { mapwipemapvoteCommand } from "./mapwipemapvote.js";
-// import { faqCommand } from "./faq.js";
+// commands/index.js
+import { forcemapvoteCommand } from "./forcemapvote.js";
 
 // Export toutes les commandes
 export const commands = {
-  help: helpCommand,
-  mapvote: mapvoteCommand,
-  mapwipemapvote: mapwipemapvoteCommand,
-  // faq: faqCommand,
+  forcemapvote: forcemapvoteCommand,
 };
 
 // Export les définitions pour l'enregistrement
 export const commandDefinitions = Object.values(commands).map(
-  (cmd) => cmd.definition
+  (cmd) => cmd.data?.toJSON() || cmd.definition
 );
 
 // Fonction pour obtenir une commande par nom

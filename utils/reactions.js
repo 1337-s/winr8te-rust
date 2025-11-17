@@ -3,152 +3,79 @@ import { EmbedBuilder } from "discord.js";
 import { colors } from "./colors.js";
 import { logger } from "./logger.js";
 import { activeVotes } from "./discord.js";
-
+import { saveWinningSeed } from "./database.js";
 // Émojis pour les votes
 const VOTE_EMOJIS = ["1️⃣", "2️⃣", "3️⃣", "4️⃣"];
 
-// Fonction pour obtenir l'index depuis l'emoji
 function getVoteIndex(emoji) {
   return VOTE_EMOJIS.indexOf(emoji);
 }
 
-// Gestion de l'ajout de réaction
-export async function handleReactionAdd(reaction, user, client) {
-  // Ignorer les bots
+// Gestion des ajouts de réaction
+export async function handleReactionAdd(reaction, user) {
   if (user.bot) return;
+  if (reaction.partial) await reaction.fetch().catch(() => null);
 
-  // Vérifier si c'est un partial et le fetch si nécessaire
-  if (reaction.partial) {
-    try {
-      await reaction.fetch();
-    } catch (error) {
-      logger.error("Error fetching reaction", { error: error.message });
-      return;
-    }
-  }
-
-  const messageId = reaction.message.id;
-  const emoji = reaction.emoji.name;
-  const voteIndex = getVoteIndex(emoji);
-
-  // Vérifier si c'est un vote valide
+  const voteIndex = getVoteIndex(reaction.emoji.name);
   if (voteIndex === -1) return;
 
-  // Trouver le vote actif correspondant
-  let voteData = null;
-  let voteId = null;
+  const voteData = Array.from(activeVotes.values()).find(v => v.voteMessageId === reaction.message.id);
+  if (!voteData || new Date() > voteData.endTime) return;
 
-  for (const [id, data] of activeVotes.entries()) {
-    if (data.voteMessageId === messageId) {
-      voteData = data;
-      voteId = id;
-      break;
-    }
-  }
-
-  if (!voteData) return;
-
-  // Vérifier si le vote est encore actif
-  if (new Date() > voteData.endTime) {
-    return;
-  }
-
-  // Mettre à jour les votes (optionnel, pour le tracking)
   logger.info("Vote added", {
     userId: user.id,
     username: user.username,
     mapIndex: voteIndex + 1,
-    voteId: voteId,
-    isMapwipe: voteData.isMapwipe || false,
+    voteId: voteData.voteMessageId,
+    isMapwipe: voteData.isMapwipe || false
   });
 }
 
-// Gestion de la suppression de réaction
-export async function handleReactionRemove(reaction, user, client) {
-  // Ignorer les bots
+// Gestion des suppressions de réaction
+export async function handleReactionRemove(reaction, user) {
   if (user.bot) return;
+  if (reaction.partial) await reaction.fetch().catch(() => null);
 
-  // Vérifier si c'est un partial et le fetch si nécessaire
-  if (reaction.partial) {
-    try {
-      await reaction.fetch();
-    } catch (error) {
-      logger.error("Error fetching reaction", { error: error.message });
-      return;
-    }
-  }
-
-  const messageId = reaction.message.id;
-  const emoji = reaction.emoji.name;
-  const voteIndex = getVoteIndex(emoji);
-
-  // Vérifier si c'est un vote valide
+  const voteIndex = getVoteIndex(reaction.emoji.name);
   if (voteIndex === -1) return;
 
-  // Trouver le vote actif correspondant
-  let voteData = null;
-  let voteId = null;
-
-  for (const [id, data] of activeVotes.entries()) {
-    if (data.voteMessageId === messageId) {
-      voteData = data;
-      voteId = id;
-      break;
-    }
-  }
-
-  if (!voteData) return;
-
-  // Vérifier si le vote est encore actif
-  if (new Date() > voteData.endTime) {
-    return;
-  }
+  const voteData = Array.from(activeVotes.values()).find(v => v.voteMessageId === reaction.message.id);
+  if (!voteData || new Date() > voteData.endTime) return;
 
   logger.info("Vote removed", {
     userId: user.id,
     username: user.username,
     mapIndex: voteIndex + 1,
-    voteId: voteId,
-    isMapwipe: voteData.isMapwipe || false,
+    voteId: voteData.voteMessageId,
+    isMapwipe: voteData.isMapwipe || false
   });
 }
 
-// Fonction pour compter les votes
+// Compter les votes
 export async function countVotes(messageId, client) {
-  try {
-    const voteData = Array.from(activeVotes.values()).find(
-      (data) => data.voteMessageId === messageId
-    );
-    if (!voteData) return null;
+  const voteData = Array.from(activeVotes.values()).find(v => v.voteMessageId === messageId);
+  if (!voteData) return null;
 
-    const channel = await client.channels.fetch(voteData.channelId);
-    const message = await channel.messages.fetch(messageId);
+  const channel = await client.channels.fetch(voteData.channelId);
+  const message = await channel.messages.fetch(messageId);
 
-    const voteCounts = [0, 0, 0, 0];
+  const voteCounts = [0, 0, 0, 0];
 
-    for (let i = 0; i < VOTE_EMOJIS.length; i++) {
-      const emoji = VOTE_EMOJIS[i];
-      const reaction = message.reactions.cache.get(emoji);
-      if (!reaction) continue;
+  for (let i = 0; i < VOTE_EMOJIS.length; i++) {
+    const reaction = message.reactions.cache.get(VOTE_EMOJIS[i]);
+    if (!reaction) continue;
 
-      const users = await reaction.users.fetch();
-      users.forEach((user) => {
-        if (!user.bot) voteCounts[i]++;
-      });
-    }
-
-    const totalVotes = voteCounts.reduce((sum, count) => sum + count, 0);
-    return {
-      votes: voteCounts,
-      total: totalVotes,
-    };
-  } catch (error) {
-    logger.error("Error counting votes", { error: error.message });
-    return null;
+    const users = await reaction.users.fetch();
+    users.forEach(u => { if (!u.bot) voteCounts[i]++; });
   }
+
+  return {
+    votes: voteCounts,
+    total: voteCounts.reduce((a, b) => a + b, 0)
+  };
 }
 
-// Fonction pour terminer un vote
+// Terminer un vote
 export async function endVote(voteId, client) {
   try {
     const voteData = activeVotes.get(voteId);
@@ -159,71 +86,76 @@ export async function endVote(voteId, client) {
 
     // Compter les votes finaux
     const result = await countVotes(voteData.voteMessageId, client);
-
     if (!result) {
       logger.error("Could not count votes for ending", { voteId });
       return;
     }
 
-    // Trouver la map gagnante
-    const maxVotes = Math.max(...result.votes);
-    const winnerIndex = result.votes.indexOf(maxVotes);
+    // Déterminer la/les map(s) gagnante(s)
+    const maxVotes = Math.max(...result.votes.slice(0, 3));
+    const winners = [];
+    result.votes.slice(0, 3).forEach((v, i) => {
+      if (v === maxVotes) winners.push(i);
+    });
+
+    // Gestion des égalités : choisir aléatoirement une map gagnante
+    const winnerIndex = winners[Math.floor(Math.random() * winners.length)];
+    const winningSeed = voteData.seeds[winnerIndex];
     const winningImage = voteData.images[winnerIndex];
     const winningLink = voteData.links[winnerIndex];
 
-    // Déterminer le type de vote et adapter le message
-    const isMapwipe = voteData.isMapwipe || false;
-    const voteType = isMapwipe ? "MAPWIPE" : "FULLWIPE";
-    const testModeIndicator = voteData.testMode ? "🧪 **MODE TEST** - " : "";
-    const embedColor = isMapwipe ? colors.GREEN : colors.YELLOW;
+    // Sécuriser les seeds et votes avant DB
+    const seeds = [
+      voteData.seeds[0]?.toString() || "0",
+      voteData.seeds[1]?.toString() || "0",
+      voteData.seeds[2]?.toString() || "0"
+    ];
+    const votes = [
+      result.votes[0] ?? 0,
+      result.votes[1] ?? 0,
+      result.votes[2] ?? 0
+    ];
+    const totalVotes = votes.reduce((a, b) => a + b, 0);
 
-    // Créer l'embed de résultat
+    // Sauvegarde dans la BDD
+    await saveWinningSeed(winningSeed, voteData.wipeDate, { seeds }, votes);
+
+    // Envoyer embed de résultat
+    const embedColor = voteData.isMapwipe ? colors.GREEN : colors.YELLOW;
     const resultEmbed = new EmbedBuilder()
-      .setTitle(`${testModeIndicator}🌍 ${voteType} MAP VOTE TERMINÉ`)
+      .setTitle(`🌍 MAP VOTE TERMINÉ`)
       .setColor(embedColor)
-      .setDescription(
-        `**Map ${winnerIndex + 1}** remporte le vote avec **${maxVotes}** votes`
-      )
-      .addFields({
-        name: "Lien vers la map",
-        value: `[Voir la map](${winningLink})`,
-        inline: true,
-      })
+      .setDescription(`**Map ${winnerIndex + 1}** remporte le vote avec **${maxVotes}** votes`)
+      .addFields({ name: "Lien vers la map", value: `[Voir la map](${winningLink})`, inline: true })
       .setImage(winningImage);
 
-    // Envoyer le résultat
     await channel.send({ embeds: [resultEmbed] });
 
-    // Supprimer le vote de la liste active
+    // Supprimer le vote actif
     activeVotes.delete(voteId);
 
     logger.success("Vote ended", {
       voteId,
       winner: winnerIndex + 1,
-      totalVotes: result.total,
-      isMapwipe: isMapwipe,
+      totalVotes,
+      isMapwipe: voteData.isMapwipe || false
     });
   } catch (error) {
     logger.error("Error ending vote", { voteId, error: error.message });
   }
 }
 
-// Fonction pour programmer la fin du vote
+// Programmer la fin du vote
 export function scheduleVoteEnd(voteId, endTime) {
   const now = new Date();
   const delay = endTime.getTime() - now.getTime();
 
   if (delay > 0) {
     setTimeout(async () => {
-      // Import dynamique pour éviter les références circulaires
       const { client } = await import("../bot.js");
       await endVote(voteId, client);
     }, delay);
 
-    logger.info("Vote end scheduled", {
-      voteId,
-      endTime: endTime.toISOString(),
-      delayMs: delay,
-    });
+    logger.info("Vote end scheduled", { voteId, endTime: endTime.toISOString(), delayMs: delay });
   }
 }
