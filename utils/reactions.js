@@ -4,6 +4,7 @@ import { colors } from "./colors.js";
 import { logger } from "./logger.js";
 import { activeVotes } from "./discord.js";
 import { saveWinningSeed } from "./database.js";
+
 // Émojis pour les votes
 const VOTE_EMOJIS = ["1️⃣", "2️⃣", "3️⃣", "4️⃣"];
 
@@ -56,38 +57,96 @@ export async function countVotes(messageId, client) {
   const voteData = Array.from(activeVotes.values()).find(v => v.voteMessageId === messageId);
   if (!voteData) return null;
 
-  const channel = await client.channels.fetch(voteData.channelId);
-  const message = await channel.messages.fetch(messageId);
+  try {
+    const channel = await client.channels.fetch(voteData.channelId);
+    const message = await channel.messages.fetch(messageId);
 
-  const voteCounts = [0, 0, 0, 0];
+    const voteCounts = [0, 0, 0, 0];
 
-  for (let i = 0; i < VOTE_EMOJIS.length; i++) {
-    const reaction = message.reactions.cache.get(VOTE_EMOJIS[i]);
-    if (!reaction) continue;
+    for (let i = 0; i < VOTE_EMOJIS.length; i++) {
+      const reaction = message.reactions.cache.get(VOTE_EMOJIS[i]);
+      if (!reaction) continue;
 
-    const users = await reaction.users.fetch();
-    users.forEach(u => { if (!u.bot) voteCounts[i]++; });
+      const users = await reaction.users.fetch();
+      users.forEach(u => { if (!u.bot) voteCounts[i]++; });
+    }
+
+    return {
+      votes: voteCounts,
+      total: voteCounts.reduce((a, b) => a + b, 0)
+    };
+  } catch (error) {
+    // Message supprimé ou erreur de fetch
+    logger.error("Cannot count votes - message may have been deleted", { 
+      messageId, 
+      error: error.message 
+    });
+    return null;
   }
-
-  return {
-    votes: voteCounts,
-    total: voteCounts.reduce((a, b) => a + b, 0)
-  };
 }
 
 // Terminer un vote
 export async function endVote(voteId, client) {
   try {
     const voteData = activeVotes.get(voteId);
-    if (!voteData) return;
+    if (!voteData) {
+      logger.warn("Vote data not found", { voteId });
+      return;
+    }
 
-    const channel = await client.channels.fetch(voteData.channelId);
-    const message = await channel.messages.fetch(voteData.voteMessageId);
+    // Vérifier que le canal existe toujours
+    let channel;
+    try {
+      channel = await client.channels.fetch(voteData.channelId);
+    } catch (error) {
+      logger.error("Vote channel not found", { 
+        voteId, 
+        channelId: voteData.channelId,
+        error: error.message 
+      });
+      activeVotes.delete(voteId);
+      return;
+    }
+
+    // Tenter de récupérer le message
+    let message;
+    try {
+      message = await channel.messages.fetch(voteData.voteMessageId);
+    } catch (error) {
+      logger.error("Vote message not found (may have been deleted)", { 
+        voteId, 
+        messageId: voteData.voteMessageId,
+        error: error.message 
+      });
+      
+      // Message supprimé : envoyer une notification et nettoyer
+      await channel.send({
+        embeds: [
+          new EmbedBuilder()
+            .setTitle("⚠️ Vote annulé")
+            .setDescription("Le message de vote a été supprimé. Aucun résultat ne peut être calculé.")
+            .setColor(colors.RED)
+        ]
+      }).catch(() => {});
+      
+      activeVotes.delete(voteId);
+      return;
+    }
 
     // Compter les votes finaux
     const result = await countVotes(voteData.voteMessageId, client);
     if (!result) {
       logger.error("Could not count votes for ending", { voteId });
+      await channel.send({
+        embeds: [
+          new EmbedBuilder()
+            .setTitle("❌ Erreur de comptage")
+            .setDescription("Impossible de compter les votes.")
+            .setColor(colors.RED)
+        ]
+      }).catch(() => {});
+      
+      activeVotes.delete(voteId);
       return;
     }
 
@@ -118,7 +177,15 @@ export async function endVote(voteId, client) {
     const totalVotes = votes.reduce((a, b) => a + b, 0);
 
     // Sauvegarde dans la BDD
-    await saveWinningSeed(winningSeed, voteData.wipeDate, { seeds }, votes);
+    try {
+      await saveWinningSeed(winningSeed, voteData.wipeDate, { seeds }, votes);
+    } catch (dbError) {
+      logger.error("Failed to save winning seed to database", { 
+        voteId, 
+        error: dbError.message 
+      });
+      // Continuer quand même pour afficher les résultats
+    }
 
     // Envoyer embed de résultat
     const embedColor = voteData.isMapwipe ? colors.GREEN : colors.YELLOW;
@@ -126,10 +193,16 @@ export async function endVote(voteId, client) {
       .setTitle(`🌍 MAP VOTE TERMINÉ`)
       .setColor(embedColor)
       .setDescription(`**Map ${winnerIndex + 1}** remporte le vote avec **${maxVotes}** votes`)
-      .addFields({ name: "Lien vers la map", value: `[Voir la map](${winningLink})`, inline: true })
+      .addFields(
+        { name: "Seed gagnante", value: `\`${winningSeed}\``, inline: true },
+        { name: "Lien vers la map", value: `[Voir la map](${winningLink})`, inline: true },
+        { name: "Total des votes", value: `${totalVotes}`, inline: true }
+      )
       .setImage(winningImage);
 
-    await channel.send({ embeds: [resultEmbed] });
+    await channel.send({ embeds: [resultEmbed] }).catch(error => {
+      logger.error("Failed to send vote results", { voteId, error: error.message });
+    });
 
     // Supprimer le vote actif
     activeVotes.delete(voteId);
@@ -142,6 +215,8 @@ export async function endVote(voteId, client) {
     });
   } catch (error) {
     logger.error("Error ending vote", { voteId, error: error.message });
+    // Nettoyer quand même
+    activeVotes.delete(voteId);
   }
 }
 
@@ -156,6 +231,12 @@ export function scheduleVoteEnd(voteId, endTime) {
       await endVote(voteId, client);
     }, delay);
 
-    logger.info("Vote end scheduled", { voteId, endTime: endTime.toISOString(), delayMs: delay });
+    logger.info("Vote end scheduled", { 
+      voteId, 
+      endTime: endTime.toISOString(), 
+      delayMs: delay 
+    });
+  } else {
+    logger.warn("Vote end time has already passed", { voteId, endTime: endTime.toISOString() });
   }
 }

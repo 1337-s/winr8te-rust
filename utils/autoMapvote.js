@@ -12,6 +12,9 @@ const VOTE_CHANNEL_ID = process.env.VOTE_CHANNEL_ID;
 const RUSTMAPS_API_KEY = process.env.RUSTMAPS_API_KEY;
 const RUSTMAPS_API_URL = "https://api.rustmaps.com/v4";
 
+// Variable pour éviter les lancements multiples
+let isVoteLaunching = false;
+
 // Générer une seed aléatoire
 function generateRandomSeed() {
   return Math.floor(Math.random() * 999999999);
@@ -98,7 +101,7 @@ function getNextWipeDate() {
   // Premier jeudi
   let firstThursday = monthStart.plus({ days: (4 - monthStart.weekday + 7) % 7 }).set({ hour: 20, minute: 0, second: 0 });
   // Troisième jeudi = 2 semaines après
-  let thirdThursday = firstThursday.plus({ weeks: 2 }).set({ hour: 18, minute: 0, second: 0 });
+  let thirdThursday = firstThursday.plus({ weeks: 2 }).set({ hour: 20, minute: 0, second: 0 });
 
   if (now <= firstThursday) return firstThursday.toJSDate();
   if (now <= thirdThursday) return thirdThursday.toJSDate();
@@ -159,9 +162,20 @@ export async function saveWinningSeed(seed, wipeDate, voteData, voteCounts) {
 
 // --- Lancer le MapVote ---
 export async function launchAutoMapVote(client, customDurationMinutes = null) {
+  // Empêcher les lancements multiples
+  if (isVoteLaunching) {
+    logger.warn("Vote launch already in progress, skipping");
+    return;
+  }
+
+  isVoteLaunching = true;
+
   try {
     const channel = await client.channels.fetch(VOTE_CHANNEL_ID);
-    if (!channel) return logger.error("Vote channel not found", { channelId: VOTE_CHANNEL_ID });
+    if (!channel) {
+      logger.error("Vote channel not found", { channelId: VOTE_CHANNEL_ID });
+      return;
+    }
 
     const seeds = [generateRandomSeed(), generateRandomSeed(), generateRandomSeed()];
     logger.info("Generated random seeds", { seeds });
@@ -179,14 +193,26 @@ export async function launchAutoMapVote(client, customDurationMinutes = null) {
     }
 
     const wipeDate = getNextWipeDate();
-    const voteEndTime = customDurationMinutes ? new Date(Date.now() + customDurationMinutes * 60 * 1000) : getVoteEndTime(wipeDate);
+    const voteEndTime = customDurationMinutes 
+      ? new Date(Date.now() + customDurationMinutes * 60 * 1000) 
+      : getVoteEndTime(wipeDate);
 
     const maps = seeds.map((seed, i) => buildMapData(mapsData[i], seed));
     const images = maps.map(m => m.imageUrl);
     const links = maps.map(m => m.mapUrl);
 
     const voteId = `auto_${Date.now()}`;
-    activeVotes.set(voteId, { images, links, seeds, votes: [0, 0, 0], endTime: voteEndTime, channelId: channel.id, voteMessageId: null, isMapwipe: false, wipeDate });
+    activeVotes.set(voteId, { 
+      images, 
+      links, 
+      seeds, 
+      votes: [0, 0, 0], 
+      endTime: voteEndTime, 
+      channelId: channel.id, 
+      voteMessageId: null, 
+      isMapwipe: false, 
+      wipeDate 
+    });
 
     scheduleVoteEnd(voteId, voteEndTime);
 
@@ -201,6 +227,8 @@ export async function launchAutoMapVote(client, customDurationMinutes = null) {
 
   } catch (error) {
     logger.error("Error launching auto MapVote", { error: error.message });
+  } finally {
+    isVoteLaunching = false;
   }
 }
 
@@ -250,7 +278,7 @@ async function sendAutoVoteMessages(channel, images, links, seeds, endTime, wipe
   }
 }
 
-// --- Scheduler ---
+// --- Scheduler (CORRIGÉ) ---
 export function scheduleNextAutoMapVote(client) {
   const nextWipeDate = getNextWipeDate();
   const voteStartTime = getVoteStartTime(nextWipeDate);
@@ -260,12 +288,39 @@ export function scheduleNextAutoMapVote(client) {
   if (delay > 0) {
     setTimeout(() => {
       launchAutoMapVote(client);
+      // Ne rappeler scheduleNextAutoMapVote qu'APRÈS le lancement réussi
       scheduleNextAutoMapVote(client);
     }, delay);
-    logger.info("Next auto MapVote scheduled", { voteStartTime: DateTime.fromJSDate(voteStartTime).toISO() });
+    
+    logger.info("Next auto MapVote scheduled", { 
+      voteStartTime: DateTime.fromJSDate(voteStartTime).toISO(),
+      delayMinutes: Math.floor(delay / 60000)
+    });
   } else {
-    logger.warn("Vote start time passed, launching immediately");
-    launchAutoMapVote(client);
-    scheduleNextAutoMapVote(client);
+    // Si le temps est dépassé, calculer le PROCHAIN wipe directement
+    logger.warn("Vote start time already passed, calculating next wipe cycle");
+    
+    // Calculer le prochain wipe après celui-ci
+    const nextMonthStart = DateTime.fromJSDate(nextWipeDate).plus({ months: 1 }).startOf("month");
+    const nextFirstThursday = nextMonthStart.plus({ 
+      days: (4 - nextMonthStart.weekday + 7) % 7 
+    }).set({ hour: 20, minute: 0, second: 0 });
+    
+    const nextVoteStart = getVoteStartTime(nextFirstThursday.toJSDate());
+    const nextDelay = nextVoteStart.getTime() - now.getTime();
+    
+    if (nextDelay > 0) {
+      setTimeout(() => {
+        launchAutoMapVote(client);
+        scheduleNextAutoMapVote(client);
+      }, nextDelay);
+      
+      logger.info("Scheduled next cycle MapVote", { 
+        nextVoteStart: DateTime.fromJSDate(nextVoteStart).toISO(),
+        delayMinutes: Math.floor(nextDelay / 60000)
+      });
+    } else {
+      logger.error("Cannot schedule MapVote - time calculation error");
+    }
   }
 }
