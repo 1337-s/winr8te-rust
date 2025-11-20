@@ -1,5 +1,10 @@
 // utils/autoMapvote.js
-import { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
+import {
+  EmbedBuilder,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+} from "discord.js";
 import { DateTime } from "luxon";
 import { colors } from "./colors.js";
 import { logger } from "./logger.js";
@@ -29,7 +34,7 @@ async function createRustMap(seed, size = MAP_SIZE) {
         "X-API-Key": RUSTMAPS_API_KEY,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ size, seed, staging: false })
+      body: JSON.stringify({ size, seed, staging: false }),
     });
 
     const data = await response.json();
@@ -40,17 +45,23 @@ async function createRustMap(seed, size = MAP_SIZE) {
 
     throw new Error(`Unexpected response: ${response.status}`);
   } catch (error) {
-    logger.error("Error creating map on RustMaps", { seed, error: error.message });
+    logger.error("Error creating map on RustMaps", {
+      seed,
+      error: error.message,
+    });
     throw error;
   }
 }
 
 async function checkMapStatus(seed, size = MAP_SIZE) {
   try {
-    const response = await fetch(`${RUSTMAPS_API_URL}/maps/${size}/${seed}?staging=false`, {
-      method: "GET",
-      headers: { "X-API-Key": RUSTMAPS_API_KEY }
-    });
+    const response = await fetch(
+      `${RUSTMAPS_API_URL}/maps/${size}/${seed}?staging=false`,
+      {
+        method: "GET",
+        headers: { "X-API-Key": RUSTMAPS_API_KEY },
+      }
+    );
 
     if (response.status === 200) {
       const data = await response.json();
@@ -72,12 +83,14 @@ async function waitForMapsGeneration(seeds, maxWaitMinutes = 30) {
   logger.info("Waiting for maps generation", { seeds, maxWaitMinutes });
 
   while (Date.now() - startTime < maxWaitMs) {
-    const statuses = await Promise.all(seeds.map(seed => checkMapStatus(seed)));
-    const allReady = statuses.every(s => s.ready);
+    const statuses = await Promise.all(
+      seeds.map((seed) => checkMapStatus(seed))
+    );
+    const allReady = statuses.every((s) => s.ready);
 
-    if (allReady) return statuses.map(s => s.mapData);
+    if (allReady) return statuses.map((s) => s.mapData);
 
-    await new Promise(r => setTimeout(r, checkInterval));
+    await new Promise((r) => setTimeout(r, checkInterval));
   }
 
   throw new Error("Timeout waiting for maps generation");
@@ -89,7 +102,7 @@ function buildMapData(mapApiData, seed) {
     seed,
     mapUrl: mapApiData.url,
     imageUrl: mapApiData.imageIconUrl || mapApiData.imageUrl,
-    mapId: mapApiData.id
+    mapId: mapApiData.id,
   };
 }
 
@@ -99,16 +112,22 @@ function getNextWipeDate() {
   const monthStart = now.startOf("month");
 
   // Premier jeudi
-  let firstThursday = monthStart.plus({ days: (4 - monthStart.weekday + 7) % 7 }).set({ hour: 20, minute: 0, second: 0 });
+  let firstThursday = monthStart
+    .plus({ days: (4 - monthStart.weekday + 7) % 7 })
+    .set({ hour: 20, minute: 0, second: 0 });
   // Troisième jeudi = 2 semaines après
-  let thirdThursday = firstThursday.plus({ weeks: 2 }).set({ hour: 20, minute: 0, second: 0 });
+  let thirdThursday = firstThursday
+    .plus({ weeks: 2 })
+    .set({ hour: 18, minute: 0, second: 0 });
 
   if (now <= firstThursday) return firstThursday.toJSDate();
   if (now <= thirdThursday) return thirdThursday.toJSDate();
 
   // Sinon premier jeudi du mois prochain
   const nextMonthStart = monthStart.plus({ months: 1 });
-  let nextFirstThursday = nextMonthStart.plus({ days: (4 - nextMonthStart.weekday + 7) % 7 }).set({ hour: 20, minute: 0, second: 0 });
+  let nextFirstThursday = nextMonthStart
+    .plus({ days: (4 - nextMonthStart.weekday + 7) % 7 })
+    .set({ hour: 20, minute: 0, second: 0 });
   return nextFirstThursday.toJSDate();
 }
 
@@ -131,7 +150,11 @@ export async function saveWinningSeed(seed, wipeDate, voteData, voteCounts) {
        current_seed = VALUES(current_seed),
        next_wipe_date = VALUES(next_wipe_date),
        updated_at = CURRENT_TIMESTAMP`,
-      [seed.toString(), MAP_SIZE, DateTime.fromJSDate(wipeDate).toFormat('yyyy-MM-dd HH:mm:ss')]
+      [
+        seed.toString(),
+        MAP_SIZE,
+        DateTime.fromJSDate(wipeDate).toFormat("yyyy-MM-dd HH:mm:ss"),
+      ]
     );
 
     await connection.execute(
@@ -139,7 +162,7 @@ export async function saveWinningSeed(seed, wipeDate, voteData, voteCounts) {
        (wipe_date, wipe_type, winner_seed, seed1, seed2, seed3, votes1, votes2, votes3, total_votes)
        VALUES (?, 'biweekly', ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        DateTime.fromJSDate(wipeDate).toFormat('yyyy-MM-dd HH:mm:ss'),
+        DateTime.fromJSDate(wipeDate).toFormat("yyyy-MM-dd HH:mm:ss"),
         seed.toString(),
         voteData.seeds[0].toString(),
         voteData.seeds[1].toString(),
@@ -147,7 +170,7 @@ export async function saveWinningSeed(seed, wipeDate, voteData, voteCounts) {
         voteCounts[0],
         voteCounts[1],
         voteCounts[2],
-        voteCounts.reduce((a, b) => a + b, 0)
+        voteCounts.reduce((a, b) => a + b, 0),
       ]
     );
 
@@ -177,54 +200,70 @@ export async function launchAutoMapVote(client, customDurationMinutes = null) {
       return;
     }
 
-    const seeds = [generateRandomSeed(), generateRandomSeed(), generateRandomSeed()];
+    const seeds = [
+      generateRandomSeed(),
+      generateRandomSeed(),
+      generateRandomSeed(),
+    ];
     logger.info("Generated random seeds", { seeds });
 
-    await channel.send({ content: "🔄 Génération des maps en cours... Cela peut prendre jusqu'à 15 minutes." });
+    await channel.send({
+      content:
+        "🔄 Génération des maps en cours... Cela peut prendre jusqu'à 15 minutes.",
+    });
 
-    await Promise.all(seeds.map(seed => createRustMap(seed)));
+    await Promise.all(seeds.map((seed) => createRustMap(seed)));
 
     let mapsData;
     try {
       mapsData = await waitForMapsGeneration(seeds);
     } catch {
-      await channel.send({ content: "❌ Les maps n'ont pas pu être générées à temps." });
+      await channel.send({
+        content: "❌ Les maps n'ont pas pu être générées à temps.",
+      });
       return;
     }
 
     const wipeDate = getNextWipeDate();
-    const voteEndTime = customDurationMinutes 
-      ? new Date(Date.now() + customDurationMinutes * 60 * 1000) 
+    const voteEndTime = customDurationMinutes
+      ? new Date(Date.now() + customDurationMinutes * 60 * 1000)
       : getVoteEndTime(wipeDate);
 
     const maps = seeds.map((seed, i) => buildMapData(mapsData[i], seed));
-    const images = maps.map(m => m.imageUrl);
-    const links = maps.map(m => m.mapUrl);
+    const images = maps.map((m) => m.imageUrl);
+    const links = maps.map((m) => m.mapUrl);
 
     const voteId = `auto_${Date.now()}`;
-    activeVotes.set(voteId, { 
-      images, 
-      links, 
-      seeds, 
-      votes: [0, 0, 0], 
-      endTime: voteEndTime, 
-      channelId: channel.id, 
-      voteMessageId: null, 
-      isMapwipe: false, 
-      wipeDate 
+    activeVotes.set(voteId, {
+      images,
+      links,
+      seeds,
+      votes: [0, 0, 0],
+      endTime: voteEndTime,
+      channelId: channel.id,
+      voteMessageId: null,
+      isMapwipe: false,
+      wipeDate,
     });
 
     scheduleVoteEnd(voteId, voteEndTime);
 
-    await sendAutoVoteMessages(channel, images, links, seeds, voteEndTime, wipeDate, voteId);
+    await sendAutoVoteMessages(
+      channel,
+      images,
+      links,
+      seeds,
+      voteEndTime,
+      wipeDate,
+      voteId
+    );
 
     logger.success("Auto MapVote launched", {
       voteId,
       seeds,
       wipeDate: DateTime.fromJSDate(wipeDate).toISO(),
-      voteEndTime: DateTime.fromJSDate(voteEndTime).toISO()
+      voteEndTime: DateTime.fromJSDate(voteEndTime).toISO(),
     });
-
   } catch (error) {
     logger.error("Error launching auto MapVote", { error: error.message });
   } finally {
@@ -233,7 +272,15 @@ export async function launchAutoMapVote(client, customDurationMinutes = null) {
 }
 
 // --- Embeds et messages ---
-async function sendAutoVoteMessages(channel, images, links, seeds, endTime, wipeDate, voteId) {
+async function sendAutoVoteMessages(
+  channel,
+  images,
+  links,
+  seeds,
+  endTime,
+  wipeDate,
+  voteId
+) {
   const commonUrl = "https://rustmaps.com";
 
   const announceEmbed = new EmbedBuilder()
@@ -241,31 +288,63 @@ async function sendAutoVoteMessages(channel, images, links, seeds, endTime, wipe
     .setColor(colors.BLUE)
     .setDescription("✅ Les maps sont prêtes ! Votez pour votre map préférée.")
     .addFields(
-      { name: "🕐 Prochain wipe", value: `<t:${Math.floor(wipeDate.getTime() / 1000)}:F>`, inline: true },
-      { name: "⏰ Fin du vote", value: `<t:${Math.floor(endTime.getTime() / 1000)}:R>`, inline: true }
+      {
+        name: "🕐 Prochain wipe",
+        value: `<t:${Math.floor(wipeDate.getTime() / 1000)}:F>`,
+        inline: true,
+      },
+      {
+        name: "⏰ Fin du vote",
+        value: `<t:${Math.floor(endTime.getTime() / 1000)}:R>`,
+        inline: true,
+      }
     );
 
-  await channel.send({ content: "@everyone", embeds: [announceEmbed], allowedMentions: { parse: ["everyone"] } });
+  await channel.send({
+    content: "@everyone",
+    embeds: [announceEmbed],
+    allowedMentions: { parse: ["everyone"] },
+  });
 
   const embeds = [
-    ...images.map((img, i) => new EmbedBuilder().setTitle(`Map ${i+1} - Seed: ${seeds[i]}`).setImage(img).setColor(colors.BLUE).setURL(commonUrl)),
-    new EmbedBuilder().setImage("https://i.ibb.co/5XYzTvgs/Frame-49.png").setColor(colors.BLUE).setURL(commonUrl)
+    ...images.map((img, i) =>
+      new EmbedBuilder()
+        .setTitle(`Map ${i + 1} - Seed: ${seeds[i]}`)
+        .setImage(img)
+        .setColor(colors.BLUE)
+        .setURL(commonUrl)
+    ),
+    new EmbedBuilder()
+      .setImage("https://i.ibb.co/5XYzTvgs/Frame-49.png")
+      .setColor(colors.BLUE)
+      .setURL(commonUrl),
   ];
 
   const row1 = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setLabel("Map 1").setStyle(ButtonStyle.Link).setURL(links[0]),
-    new ButtonBuilder().setLabel("Map 2").setStyle(ButtonStyle.Link).setURL(links[1])
+    new ButtonBuilder()
+      .setLabel("Map 1")
+      .setStyle(ButtonStyle.Link)
+      .setURL(links[0]),
+    new ButtonBuilder()
+      .setLabel("Map 2")
+      .setStyle(ButtonStyle.Link)
+      .setURL(links[1])
   );
 
   const row2 = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setLabel("Map 3").setStyle(ButtonStyle.Link).setURL(links[2])
+    new ButtonBuilder()
+      .setLabel("Map 3")
+      .setStyle(ButtonStyle.Link)
+      .setURL(links[2])
   );
 
   await channel.send({ embeds, components: [row1, row2] });
 
   const voteEmbed = new EmbedBuilder()
     .setTitle("VOTEZ POUR LA PROCHAINE MAP")
-    .setDescription("Cliquez sur les réactions pour voter pour votre map préférée :\n```\n1️⃣ → Map 1    2️⃣ → Map 2\n3️⃣ → Map 3\n```")
+    .setDescription(
+      "Cliquez sur les réactions pour voter pour votre map préférée :\n```\n1️⃣ → Map 1    2️⃣ → Map 2\n3️⃣ → Map 3\n```"
+    )
     .setColor(colors.BLUE);
 
   const voteMessage = await channel.send({ embeds: [voteEmbed] });
@@ -274,7 +353,7 @@ async function sendAutoVoteMessages(channel, images, links, seeds, endTime, wipe
 
   for (const emoji of ["1️⃣", "2️⃣", "3️⃣"]) {
     await voteMessage.react(emoji);
-    await new Promise(r => setTimeout(r, 200));
+    await new Promise((r) => setTimeout(r, 200));
   }
 }
 
@@ -291,33 +370,37 @@ export function scheduleNextAutoMapVote(client) {
       // Ne rappeler scheduleNextAutoMapVote qu'APRÈS le lancement réussi
       scheduleNextAutoMapVote(client);
     }, delay);
-    
-    logger.info("Next auto MapVote scheduled", { 
+
+    logger.info("Next auto MapVote scheduled", {
       voteStartTime: DateTime.fromJSDate(voteStartTime).toISO(),
-      delayMinutes: Math.floor(delay / 60000)
+      delayMinutes: Math.floor(delay / 60000),
     });
   } else {
     // Si le temps est dépassé, calculer le PROCHAIN wipe directement
     logger.warn("Vote start time already passed, calculating next wipe cycle");
-    
+
     // Calculer le prochain wipe après celui-ci
-    const nextMonthStart = DateTime.fromJSDate(nextWipeDate).plus({ months: 1 }).startOf("month");
-    const nextFirstThursday = nextMonthStart.plus({ 
-      days: (4 - nextMonthStart.weekday + 7) % 7 
-    }).set({ hour: 20, minute: 0, second: 0 });
-    
+    const nextMonthStart = DateTime.fromJSDate(nextWipeDate)
+      .plus({ months: 1 })
+      .startOf("month");
+    const nextFirstThursday = nextMonthStart
+      .plus({
+        days: (4 - nextMonthStart.weekday + 7) % 7,
+      })
+      .set({ hour: 20, minute: 0, second: 0 });
+
     const nextVoteStart = getVoteStartTime(nextFirstThursday.toJSDate());
     const nextDelay = nextVoteStart.getTime() - now.getTime();
-    
+
     if (nextDelay > 0) {
       setTimeout(() => {
         launchAutoMapVote(client);
         scheduleNextAutoMapVote(client);
       }, nextDelay);
-      
-      logger.info("Scheduled next cycle MapVote", { 
+
+      logger.info("Scheduled next cycle MapVote", {
         nextVoteStart: DateTime.fromJSDate(nextVoteStart).toISO(),
-        delayMinutes: Math.floor(nextDelay / 60000)
+        delayMinutes: Math.floor(nextDelay / 60000),
       });
     } else {
       logger.error("Cannot schedule MapVote - time calculation error");
